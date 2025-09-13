@@ -75,6 +75,8 @@ export default {
           username.value = ''
           password.value = ''
           
+          console.log('Login successful') // debug log
+          
           // waits 1 second to show success message before redirecting
           setTimeout(() => {
             router.push('/')

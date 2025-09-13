@@ -69,13 +69,13 @@ export const authService = {
       }
       
       // create new user object
-      // generates a new ID and sets default role as 'user'
+      // generates a new ID and uses the selected role
       const newUser = {
         id: users.value.length + 1,
         username: userData.username,
         email: userData.email,
         password: userData.password, // in real project, password should be encrypted
-        role: 'user', // default role is user
+        role: userData.role || 'user', // use selected role or default to 'user'
         createdAt: new Date().toISOString()
       }
       
@@ -125,6 +125,10 @@ export const authService = {
       localStorage.setItem('currentUser', JSON.stringify(currentUser.value))
       localStorage.setItem('isAuthenticated', 'true')
       
+      // trigger auth state change event
+      // 触发认证状态变化事件
+      this.triggerAuthStateChange()
+      
       return { success: true, message: 'Login successful', user: currentUser.value }
     } catch (error) {
       return { success: false, message: error.message }
@@ -142,6 +146,10 @@ export const authService = {
     // removes all stored user data from the browser
     localStorage.removeItem('currentUser')
     localStorage.removeItem('isAuthenticated')
+    
+    // trigger auth state change event
+    // 触发认证状态变化事件
+    this.triggerAuthStateChange()
   },
   
   // this function checks authentication status from local storage
@@ -175,6 +183,13 @@ export const authService = {
   
   get isAuthenticatedReactive() {
     return isAuthenticated.value
+  },
+  
+  // function to trigger auth state change event
+  // 触发认证状态变化事件的函数
+  triggerAuthStateChange() {
+    console.log('Triggering auth state change event...') // debug log
+    window.dispatchEvent(new CustomEvent('authStateChanged'))
   },
   
   // this function checks if the current user has a specific role

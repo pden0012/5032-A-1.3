@@ -61,6 +61,37 @@
         <div v-if="errors.confirmPassword" class="text-danger">{{ errors.confirmPassword }}</div>
       </div>
       
+      <!-- user type selection -->
+      <!-- 用户类型选择 -->
+      <div class="form-group">
+        <label>User Type:</label>
+        <div class="user-type-options">
+          <label class="radio-option">
+            <input type="radio" v-model="userType" value="user">
+            <span>User</span>
+          </label>
+          <label class="radio-option">
+            <input type="radio" v-model="userType" value="admin">
+            <span>Admin</span>
+          </label>
+        </div>
+      </div>
+      
+      <!-- admin password field (only shown when admin is selected) -->
+      <!-- 管理员密码字段（仅在选择管理员时显示） -->
+      <div v-if="userType === 'admin'" class="form-group">
+        <label>Admin Password:</label>
+        <input 
+          type="password" 
+          v-model="adminPassword" 
+          placeholder="Enter admin password"
+          required
+        >
+        <div class="admin-password-hint">
+          <small>Enter the internal admin password to register as administrator</small>
+        </div>
+      </div>
+      
       <button type="submit" :disabled="isLoading">
         {{ isLoading ? 'Registering...' : 'Register' }}
       </button>
@@ -86,6 +117,8 @@ export default {
     const email = ref('')
     const password = ref('')
     const confirmPassword = ref('')
+    const userType = ref('')
+    const adminPassword = ref('')
     const isLoading = ref(false)
     const errorMessage = ref('')
     const successMessage = ref('')
@@ -170,6 +203,13 @@ export default {
         return
       }
       
+      // check admin password if user selected admin
+      // 如果用户选择管理员，检查管理员密码
+      if (userType.value === 'admin' && adminPassword.value !== '1111') {
+        errorMessage.value = 'Invalid admin password'
+        return
+      }
+      
       isLoading.value = true
       errorMessage.value = ''
       successMessage.value = ''
@@ -180,7 +220,8 @@ export default {
         const userData = {
           username: username.value,
           email: email.value,
-          password: password.value
+          password: password.value,
+          role: userType.value
         }
         
         // call authentication service to register
@@ -195,6 +236,12 @@ export default {
           email.value = ''
           password.value = ''
           confirmPassword.value = ''
+          userType.value = ''
+          adminPassword.value = ''
+          
+          // trigger a custom event to notify App.vue to update auth state
+          // 触发自定义事件通知App.vue更新认证状态
+          window.dispatchEvent(new CustomEvent('authStateChanged'))
           
           // redirect to home page after 2 seconds
           // 2秒后跳转到首页
@@ -218,6 +265,8 @@ export default {
       email,
       password,
       confirmPassword,
+      userType,
+      adminPassword,
       errors,
       isLoading,
       errorMessage,
@@ -458,5 +507,50 @@ button:disabled {
     padding: 0.9rem 1.75rem;
     font-size: 1.1rem;
   }
+}
+
+/* user type selection styling */
+/* 用户类型选择样式 */
+.user-type-options {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+.radio-option:hover {
+  background-color: #f8f9fa;
+}
+
+.radio-option input[type="radio"] {
+  margin: 0;
+}
+
+.radio-option span {
+  font-weight: normal;
+}
+
+/* admin password field styling */
+/* 管理员密码字段样式 */
+.admin-password-hint {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background-color: #fff3cd;
+  border-radius: 4px;
+  border-left: 3px solid #ffc107;
+}
+
+.admin-password-hint small {
+  color: #856404;
+  font-style: italic;
 }
 </style>

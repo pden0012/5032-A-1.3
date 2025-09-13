@@ -23,6 +23,13 @@
         <!-- 用户已登录时显示用户信息和登出按钮 -->
         <template v-else>
           <span class="user-welcome">Welcome, {{ currentUser.username }}!</span>
+          
+          <!-- show admin-only navigation items -->
+          <!-- 显示仅管理员可见的导航项 -->
+          <template v-if="authService.isAdmin()">
+            <router-link to="/admin" @click="closeMobileMenu" class="admin-link">Admin Panel</router-link>
+          </template>
+          
           <button @click="handleLogout" class="logout-button">Logout</button>
         </template>
       </div>
@@ -71,17 +78,37 @@ export default {
     // 用户登出函数
     const handleLogout = () => {
       authService.logout()
+      updateAuthState() // update UI state immediately
     }
     
-    // use computed properties to get real-time auth state from authService
-    // 使用计算属性从authService获取实时认证状态
-    const currentUser = computed(() => authService.currentUserReactive)
-    const isAuthenticated = computed(() => authService.isAuthenticatedReactive)
+    // reactive auth state that syncs with authService
+    // 与authService同步的响应式认证状态
+    const currentUser = ref(null)
+    const isAuthenticated = ref(false)
+    
+    // function to update auth state from authService
+    // 从authService更新认证状态的函数
+    const updateAuthState = () => {
+      console.log('Updating auth state...') // debug log
+      currentUser.value = authService.getCurrentUser()
+      isAuthenticated.value = authService.isLoggedIn()
+      console.log('Current user:', currentUser.value) // debug log
+      console.log('Is authenticated:', isAuthenticated.value) // debug log
+    }
     
     // check authentication status when app starts
     // 应用启动时检查认证状态
     onMounted(() => {
+      console.log('App mounted, checking auth status...') // debug log
       authService.checkAuthStatus()
+      updateAuthState()
+      
+      // listen for auth state changes from login/logout
+      // 监听登录/登出时的认证状态变化
+      window.addEventListener('authStateChanged', () => {
+        console.log('Auth state change event received!') // debug log
+        updateAuthState()
+      })
     })
     
     return {
@@ -90,7 +117,8 @@ export default {
       closeMobileMenu,
       currentUser,
       isAuthenticated,
-      handleLogout
+      handleLogout,
+      authService
     }
   }
 }
@@ -181,6 +209,22 @@ body {
   color: white;
   padding: 0.5rem 1rem;
   font-weight: bold;
+}
+
+/* admin link styling */
+/* 管理员链接样式 */
+.admin-link {
+  color: #ffc107;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+  font-weight: bold;
+}
+
+.admin-link:hover {
+  background-color: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
 }
 
 /* logout button styling */
