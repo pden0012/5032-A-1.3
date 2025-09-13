@@ -167,6 +167,16 @@ export const authService = {
     return isAuthenticated.value
   },
   
+  // these functions provide reactive access to auth state
+  // 这些函数提供对认证状态的响应式访问
+  get currentUserReactive() {
+    return currentUser.value
+  },
+  
+  get isAuthenticatedReactive() {
+    return isAuthenticated.value
+  },
+  
   // this function checks if the current user has a specific role
   // useful for role-based access control
   hasRole(role) {

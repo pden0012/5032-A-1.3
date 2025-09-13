@@ -41,7 +41,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { authService } from './services/auth'
 
 // this is the main app component
@@ -54,11 +54,6 @@ export default {
     // mobile menu state
     // 移动端菜单状态
     const mobileMenuOpen = ref(false)
-    
-    // authentication state for the whole app
-    // 整个应用的认证状态
-    const currentUser = ref(null)
-    const isAuthenticated = ref(false)
     
     // function to toggle mobile menu
     // 切换移动端菜单的函数
@@ -76,18 +71,17 @@ export default {
     // 用户登出函数
     const handleLogout = () => {
       authService.logout()
-      currentUser.value = null
-      isAuthenticated.value = false
     }
+    
+    // use computed properties to get real-time auth state from authService
+    // 使用计算属性从authService获取实时认证状态
+    const currentUser = computed(() => authService.currentUserReactive)
+    const isAuthenticated = computed(() => authService.isAuthenticatedReactive)
     
     // check authentication status when app starts
     // 应用启动时检查认证状态
     onMounted(() => {
       authService.checkAuthStatus()
-      if (authService.isLoggedIn()) {
-        currentUser.value = authService.getCurrentUser()
-        isAuthenticated.value = true
-      }
     })
     
     return {

@@ -2,6 +2,19 @@
   <div class="login">
     <!-- login form -->
     <h2>Login</h2>
+    
+    <!-- error message display -->
+    <!-- this div shows error messages when login fails -->
+    <div v-if="errorMessage" class="error-message">
+      {{ errorMessage }}
+    </div>
+    
+    <!-- success message display -->
+    <!-- this div shows success messages when login is successful -->
+    <div v-if="successMessage" class="success-message">
+      {{ successMessage }}
+    </div>
+    
     <form @submit.prevent="handleLogin">
       <div class="form-group">
         <label>Username:</label>
@@ -13,29 +26,75 @@
         <input type="password" v-model="password" required>
       </div>
       
-      <button type="submit">Login</button>
+      <button type="submit" :disabled="isLoading" @click="handleLogin">
+        {{ isLoading ? 'Logging in...' : 'Login' }}
+      </button>
     </form>
   </div>
 </template>
 
 <script>
 import { ref } from 'vue'
-// login component
+import { useRouter } from 'vue-router'
+import { authService } from '../services/auth'
+
+// this component handles user authentication and login form
+// uses Vue Router for navigation and authService for authentication
 export default {
   name: 'Login',
   setup() {
-    // reactive data
+    const router = useRouter()
+    
+    // these ref variables store the form input values and UI state
     const username = ref('')
     const password = ref('')
+    const isLoading = ref(false)
+    const errorMessage = ref('')
+    const successMessage = ref('')
     
-    // login function
-    const handleLogin = () => {
-      console.log('Login attempt:', username.value)
+    // this function handles the login process when form is submitted
+    // validates inputs, calls authService, and handles responses
+    const handleLogin = async () => {
+      // basic validation to ensure both fields have values
+      if (!username.value || !password.value) {
+        errorMessage.value = 'Please fill in username and password'
+        return
+      }
+      
+      isLoading.value = true
+      errorMessage.value = ''
+      successMessage.value = ''
+      
+      try {
+        // calls the authService.login method with user credentials
+        const result = await authService.login(username.value, password.value)
+        
+        if (result.success) {
+          successMessage.value = result.message
+          // resets the form fields after successful authentication
+          username.value = ''
+          password.value = ''
+          
+          // waits 1 second to show success message before redirecting
+          setTimeout(() => {
+            router.push('/')
+          }, 1000)
+        } else {
+          errorMessage.value = result.message
+        }
+      } catch (error) {
+        errorMessage.value = 'Login failed, please try again'
+      } finally {
+        isLoading.value = false
+      }
     }
     
     return {
       username,
       password,
+      isLoading,
+      errorMessage,
+      successMessage,
       handleLogin
     }
   }
@@ -96,6 +155,35 @@ button {
 
 button:hover {
   background: #2980b9;
+}
+
+/* error message styling */
+/* 错误信息样式 */
+.error-message {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  border: 1px solid #f5c6cb;
+}
+
+/* success message styling */
+/* 成功信息样式 */
+.success-message {
+  background-color: #d4edda;
+  color: #155724;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  border: 1px solid #c3e6cb;
+}
+
+/* disabled button styling */
+/* 禁用按钮样式 */
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Bootstrap breakpoints implementation */
