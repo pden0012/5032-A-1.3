@@ -10,9 +10,21 @@
       </button>
       <div class="nav-links" :class="{ active: mobileMenuOpen }">
         <router-link to="/" @click="closeMobileMenu">Home</router-link>
-        <router-link to="/login" @click="closeMobileMenu">Login</router-link>
-        <!-- this is for the register page -->
-        <router-link to="/register" @click="closeMobileMenu">Register</router-link>
+        
+        <!-- show login/register when user is not logged in -->
+        <!-- 用户未登录时显示登录/注册链接 -->
+        <template v-if="!isAuthenticated">
+          <router-link to="/login" @click="closeMobileMenu">Login</router-link>
+          <!-- this is for the register page -->
+          <router-link to="/register" @click="closeMobileMenu">Register</router-link>
+        </template>
+        
+        <!-- show user info and logout when user is logged in -->
+        <!-- 用户已登录时显示用户信息和登出按钮 -->
+        <template v-else>
+          <span class="user-welcome">Welcome, {{ currentUser.username }}!</span>
+          <button @click="handleLogout" class="logout-button">Logout</button>
+        </template>
       </div>
     </nav>
     
@@ -29,30 +41,62 @@
 </template>
 
 <script>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { authService } from './services/auth'
 
 // this is the main app component
+// 这是主应用组件
 export default {
   name: 'App',
   // setup function for composition API
+  // 使用组合式API的setup函数
   setup() {
     // mobile menu state
+    // 移动端菜单状态
     const mobileMenuOpen = ref(false)
     
+    // authentication state for the whole app
+    // 整个应用的认证状态
+    const currentUser = ref(null)
+    const isAuthenticated = ref(false)
+    
     // function to toggle mobile menu
+    // 切换移动端菜单的函数
     const toggleMobileMenu = () => {
       mobileMenuOpen.value = !mobileMenuOpen.value
     }
     
     // function to close mobile menu
+    // 关闭移动端菜单的函数
     const closeMobileMenu = () => {
       mobileMenuOpen.value = false
     }
     
+    // function to logout user
+    // 用户登出函数
+    const handleLogout = () => {
+      authService.logout()
+      currentUser.value = null
+      isAuthenticated.value = false
+    }
+    
+    // check authentication status when app starts
+    // 应用启动时检查认证状态
+    onMounted(() => {
+      authService.checkAuthStatus()
+      if (authService.isLoggedIn()) {
+        currentUser.value = authService.getCurrentUser()
+        isAuthenticated.value = true
+      }
+    })
+    
     return {
       mobileMenuOpen,
       toggleMobileMenu,
-      closeMobileMenu
+      closeMobileMenu,
+      currentUser,
+      isAuthenticated,
+      handleLogout
     }
   }
 }
@@ -135,6 +179,30 @@ body {
 
 .nav-links a:hover {
   background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* user welcome message styling */
+/* 用户欢迎信息样式 */
+.user-welcome {
+  color: white;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+}
+
+/* logout button styling */
+/* 登出按钮样式 */
+.logout-button {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.logout-button:hover {
+  background-color: #c82333;
 }
 
 .main-content {
