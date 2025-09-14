@@ -47,6 +47,20 @@
           @input="() => validatePassword(false)"
         >
         <div v-if="errors.password" class="text-danger">{{ errors.password }}</div>
+        
+        <!-- password strength indicator -->
+        <div v-if="passwordStrength.text" class="password-strength">
+          <div class="strength-bar">
+            <div 
+              class="strength-fill" 
+              :class="passwordStrength.color"
+              :style="{ width: (passwordStrength.score / 8 * 100) + '%' }"
+            ></div>
+          </div>
+          <span class="strength-text" :class="passwordStrength.color">
+            {{ passwordStrength.text }}
+          </span>
+        </div>
       </div>
       
 
@@ -101,6 +115,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authService } from '../services/auth'
+import { sanitizeInput, getSafeErrorMessage } from '../utils/security'
 
 // register component
 // 注册组件
@@ -122,12 +137,18 @@ export default {
     const successMessage = ref('')
     
     // errors object for validation
-    // 验证错误对象
     const errors = ref({
       username: null,
       email: null,
       password: null,
       confirmPassword: null
+    })
+    
+    // password strength indicator
+    const passwordStrength = ref({
+      score: 0,
+      text: '',
+      color: ''
     })
     
     // validation functions
@@ -157,18 +178,83 @@ export default {
       }
     }
     
-    // password validation(simple test)
-    // 密码验证（简单测试）
+    // password validation with strength checking
     const validatePassword = (blur) => {
-      // This is password validation
-      // 这是密码验证
-      // the password must be between 6-10 characters
-      // 密码必须在6-10个字符之间
-      if (password.value.length < 6 || password.value.length > 10) {
-        if (blur) errors.value.password = "Password must be between 6-10 characters"
-      } else {
-        errors.value.password = null
+      const pwd = password.value
+      let errorMessage = null
+      
+      // check password length
+      if (pwd.length < 6 || pwd.length > 20) {
+        errorMessage = "Password must be between 6-20 characters"
       }
+      // check for uppercase letter
+      else if (!/[A-Z]/.test(pwd)) {
+        errorMessage = "Password must contain at least one uppercase letter"
+      }
+      // check for lowercase letter
+      else if (!/[a-z]/.test(pwd)) {
+        errorMessage = "Password must contain at least one lowercase letter"
+      }
+      // check for number
+      else if (!/\d/.test(pwd)) {
+        errorMessage = "Password must contain at least one number"
+      }
+      // check for special character
+      else if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)) {
+        errorMessage = "Password must contain at least one special character (!@#$%^&*)"
+      }
+      
+      if (blur) {
+        errors.value.password = errorMessage
+      }
+      
+      // update password strength indicator
+      updatePasswordStrength()
+    }
+    
+    // this function calculates password strength and updates the indicator
+    const updatePasswordStrength = () => {
+      const pwd = password.value
+      let score = 0
+      let text = ''
+      let color = ''
+      
+      if (pwd.length === 0) {
+        text = ''
+        color = ''
+      } else if (pwd.length < 6) {
+        text = 'Too short'
+        color = 'red'
+        score = 1
+      } else {
+        // length check
+        if (pwd.length >= 6) score++
+        if (pwd.length >= 8) score++
+        if (pwd.length >= 12) score++
+        
+        // character type checks
+        if (/[a-z]/.test(pwd)) score++
+        if (/[A-Z]/.test(pwd)) score++
+        if (/\d/.test(pwd)) score++
+        if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)) score++
+        
+        // determine strength text and color
+        if (score <= 2) {
+          text = 'Weak'
+          color = 'red'
+        } else if (score <= 4) {
+          text = 'Fair'
+          color = 'orange'
+        } else if (score <= 6) {
+          text = 'Good'
+          color = 'yellow'
+        } else {
+          text = 'Strong'
+          color = 'green'
+        }
+      }
+      
+      passwordStrength.value = { score, text, color }
     }
     
     // confirm password validation
@@ -271,7 +357,8 @@ export default {
       successMessage,
       validateUsername,
       validateEmail,
-      validatePassword,
+      passwordStrength,
+      updatePasswordStrength,
       validateConfirmPassword,
       handleRegister
     }
@@ -547,8 +634,62 @@ button:disabled {
   border-left: 3px solid #ffc107;
 }
 
-.admin-password-hint small {
-  color: #856404;
-  font-style: italic;
+/* password strength indicator styling */
+.password-strength {
+  margin-top: 0.5rem;
 }
+
+.strength-bar {
+  width: 100%;
+  height: 4px;
+  background-color: #e0e0e0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.strength-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.strength-fill.red {
+  background-color: #f44336;
+}
+
+.strength-fill.orange {
+  background-color: #ff9800;
+}
+
+.strength-fill.yellow {
+  background-color: #ffeb3b;
+}
+
+.strength-fill.green {
+  background-color: #4caf50;
+}
+
+.strength-text {
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.strength-text.red {
+  color: #f44336;
+}
+
+.strength-text.orange {
+  color: #ff9800;
+}
+
+.strength-text.yellow {
+  color: #ff9800;
+}
+
+.strength-text.green {
+  color: #4caf50;
+}
+
+
 </style>

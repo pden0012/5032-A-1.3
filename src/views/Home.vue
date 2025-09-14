@@ -170,6 +170,7 @@
 import { ref, computed, onMounted } from 'vue'
 import mentalHealthData from '../data/mentalHealthData.json'
 import { authService } from '../services/auth'
+import { sanitizeInput, validateAndSanitize, getSafeErrorMessage } from '../utils/security'
 
 // home page component with dynamic data and role-based features
 export default {
@@ -215,34 +216,99 @@ export default {
       return resources.value.filter(resource => resource.category === selectedCategory.value)
     })
     
-    // admin functions for resource management
+    // admin functions for managing resources with security checks
+    // these functions help admins add and edit resources safely
+    // includes input validation to prevent malicious content
     const addResource = () => {
-      const newId = Math.max(...resources.value.map(r => r.id)) + 1
-      const resource = {
-        id: newId,
-        title: newResource.value.title,
-        description: newResource.value.description,
-        category: newResource.value.category
-      }
-      resources.value.push(resource)
-      
-      // reset form
-      newResource.value = {
-        title: '',
-        description: '',
-        category: ''
+      try {
+        // clean and validate the input data to make sure it's safe
+        // this prevents users from injecting malicious code
+        const sanitizedTitle = validateAndSanitize(newResource.value.title)
+        const sanitizedDescription = validateAndSanitize(newResource.value.description)
+        const sanitizedCategory = sanitizeInput(newResource.value.category)
+        
+        // check if the cleaned data is still valid after sanitization
+        // if sanitization removed everything, the input was probably malicious
+        if (!sanitizedTitle) {
+          alert('Please provide valid information for all fields')
+          return
+        }
+        
+        if (!sanitizedDescription) {
+          alert('Please provide valid information for all fields')
+          return
+        }
+        
+        if (!sanitizedCategory) {
+          alert('Please provide valid information for all fields')
+          return
+        }
+        
+        // create a new resource with the cleaned data
+        // find the highest ID and add 1 to get the next ID
+        let maxId = 0
+        for (let i = 0; i < resources.value.length; i++) {
+          if (resources.value[i].id > maxId) {
+            maxId = resources.value[i].id
+          }
+        }
+        const newId = maxId + 1
+        const resource = {
+          id: newId,
+          title: sanitizedTitle,
+          description: sanitizedDescription,
+          category: sanitizedCategory
+        }
+        resources.value.push(resource)
+        
+        // clear the form after successful addition
+        newResource.value = {
+          title: '',
+          description: '',
+          category: ''
+        }
+        
+        alert('Resource added successfully!')
+      } catch (error) {
+        // log the error for debugging but don't expose sensitive details
+        console.error('Error adding resource:', error)
+        // show a safe error message that doesn't reveal system information
+        alert(getSafeErrorMessage(error))
       }
     }
     
+    // function for editing existing resources with security validation
+    // allows admins to modify resource titles and descriptions safely
+    // includes input sanitization to prevent malicious content
     const editResource = (resource) => {
-      const newTitle = prompt('Edit title:', resource.title)
-      if (newTitle) {
-        resource.title = newTitle
-      }
-      
-      const newDescription = prompt('Edit description:', resource.description)
-      if (newDescription) {
-        resource.description = newDescription
+      try {
+        // get new title from user and clean it before saving
+        const newTitle = prompt('Edit title:', resource.title)
+        if (newTitle) {
+          const sanitizedTitle = validateAndSanitize(newTitle)
+          if (sanitizedTitle) {
+            resource.title = sanitizedTitle
+          } else {
+            alert('Invalid title provided')
+            return
+          }
+        }
+        
+        // get new description from user and clean it before saving
+        const newDescription = prompt('Edit description:', resource.description)
+        if (newDescription) {
+          const sanitizedDescription = validateAndSanitize(newDescription)
+          if (sanitizedDescription) {
+            resource.description = sanitizedDescription
+          } else {
+            alert('Invalid description provided')
+            return
+          }
+        }
+      } catch (error) {
+        // log error for debugging but show safe message to user
+        console.error('Error editing resource:', error)
+        alert(getSafeErrorMessage(error))
       }
     }
     
