@@ -66,6 +66,103 @@
         <button type="submit" class="add-btn">Add Resource</button>
       </form>
     </div>
+    
+    <!-- unified rating section for all resources -->
+    <div class="unified-rating-section">
+      <h2>Rate Resources</h2>
+      
+      <!-- resource selection dropdown -->
+      <div class="rating-controls">
+        <div class="resource-selector">
+          <label for="resourceSelect">Select Resource to Rate:</label>
+          <select id="resourceSelect" v-model="selectedResourceForRating" class="resource-dropdown">
+            <option value="">Choose a resource...</option>
+            <option v-for="resource in resources" :key="resource.id" :value="resource.id">
+              {{ resource.title }} ({{ resource.category }})
+            </option>
+          </select>
+        </div>
+        
+        <!-- rating display for selected resource -->
+        <div v-if="selectedResourceForRating" class="selected-resource-rating">
+          <div class="resource-info">
+            <h3>{{ getSelectedResourceTitle() }}</h3>
+            <p>{{ getSelectedResourceDescription() }}</p>
+          </div>
+          
+          <!-- current rating display -->
+          <div class="current-rating">
+            <div class="rating-display">
+              <div class="stars">
+                <!-- display full stars -->
+                <span 
+                  v-for="star in Math.floor(getAverageRating(selectedResourceForRating))" 
+                  :key="`avg-full-${star}-${ratingRefreshTrigger}`"
+                  class="star filled"
+                >
+                  ⭐
+                </span>
+                <!-- display half star if needed -->
+                <span 
+                  v-if="getAverageRating(selectedResourceForRating) % 1 >= 0.5"
+                  :key="`avg-half-${ratingRefreshTrigger}`"
+                  class="star half"
+                >
+                  ⭐
+                </span>
+              </div>
+              <span class="rating-text">
+                Average: {{ getAverageRating(selectedResourceForRating).toFixed(1) }} 
+                ({{ getRatingCount(selectedResourceForRating) }} ratings)
+              </span>
+            </div>
+            
+            <!-- your rating display -->
+            <div v-if="authService.isLoggedIn()" class="your-rating">
+              <span class="your-rating-label">Your Rating:</span>
+              <div class="stars">
+                <span 
+                  v-for="star in getUserRating(selectedResourceForRating)" 
+                  :key="`user-${star}-${ratingRefreshTrigger}`"
+                  class="star filled"
+                >
+                  ⭐
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- rating input -->
+          <div v-if="authService.isLoggedIn()" class="rating-input-section">
+            <span class="rate-label">Rate this resource:</span>
+            <div class="star-inputs">
+              <span 
+                v-for="star in 5" 
+                :key="star"
+                class="star-input"
+                :class="{ active: star <= currentRating }"
+                @click="setCurrentRating(star)"
+              >
+                ⭐
+              </span>
+            </div>
+            <button @click="submitRating" class="submit-rating-btn" :disabled="currentRating === 0">
+              Submit Rating
+            </button>
+          </div>
+          
+          <!-- login prompt for non-logged in users -->
+          <div v-else class="login-prompt">
+            <p>Please <router-link to="/login">login</router-link> to rate resources</p>
+          </div>
+        </div>
+        
+        <!-- prompt when no resource is selected -->
+        <div v-else class="no-selection-prompt">
+          <p>Select a resource above to view and submit ratings</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -75,7 +172,6 @@ import mentalHealthData from '../data/mentalHealthData.json'
 import { authService } from '../services/auth'
 
 // home page component with dynamic data and role-based features
-// 首页组件，包含动态数据和基于角色的功能
 export default {
   name: 'Home',
   setup() {
@@ -84,12 +180,21 @@ export default {
     const selectedCategory = ref('All')
     
     // new resource form data for admin
-    // 管理员新资源表单数据
     const newResource = ref({
       title: '',
       description: '',
       category: ''
     })
+    
+    // rating system data for user feedback
+    const ratings = ref({})
+    
+    // selected resource for rating and current rating input
+    const selectedResourceForRating = ref('')
+    const currentRating = ref(0)
+    
+    // force refresh trigger for rating display
+    const ratingRefreshTrigger = ref(0)
     
     const loadData = () => {
       resources.value = mentalHealthData.resources
@@ -111,7 +216,6 @@ export default {
     })
     
     // admin functions for resource management
-    // 管理员资源管理功能
     const addResource = () => {
       const newId = Math.max(...resources.value.map(r => r.id)) + 1
       const resource = {
@@ -151,6 +255,140 @@ export default {
       }
     }
     
+    // rating system functions for user feedback
+    
+    // this function gets rating data for a specific resource from localStorage
+    const getRatings = (resourceId) => {
+      const stored = localStorage.getItem(`ratings_${resourceId}`)
+      return stored ? JSON.parse(stored) : []
+    }
+    
+    // this function calculates the average rating for a resource
+    const getAverageRating = (resourceId) => {
+      const resourceRatings = getRatings(resourceId)
+      if (resourceRatings.length === 0) return 0
+      const sum = resourceRatings.reduce((acc, r) => acc + r.rating, 0)
+      return sum / resourceRatings.length
+    }
+    
+    // this function gets the total number of ratings for a resource
+    const getRatingCount = (resourceId) => {
+      return getRatings(resourceId).length
+    }
+    
+    // this function gets the current user's rating for a resource
+    const getUserRating = (resourceId) => {
+      // force reactivity by accessing the refresh trigger
+      ratingRefreshTrigger.value
+      
+      if (!authService.isLoggedIn()) return 0
+      const currentUser = authService.getCurrentUser()
+      if (!currentUser) return 0
+      
+      // convert resourceId to string to match localStorage key
+      const resourceIdStr = String(resourceId)
+      
+      // get fresh data from localStorage
+      const stored = localStorage.getItem(`ratings_${resourceIdStr}`)
+      const resourceRatings = stored ? JSON.parse(stored) : []
+      
+      const userRating = resourceRatings.find(r => r.userId === currentUser.id)
+      
+      
+      return userRating ? userRating.rating : 0
+    }
+    
+    // this function handles user rating submission
+    // 处理用户评分提交
+    const rateResource = (resourceId, rating) => {
+      if (!authService.isLoggedIn()) return
+      
+      const currentUser = authService.getCurrentUser()
+      
+      // convert resourceId to string to match localStorage key
+      const resourceIdStr = String(resourceId)
+      
+      // get fresh data from localStorage
+      const stored = localStorage.getItem(`ratings_${resourceIdStr}`)
+      const resourceRatings = stored ? JSON.parse(stored) : []
+      
+      
+      // check if user has already rated this resource
+      const existingRatingIndex = resourceRatings.findIndex(r => r.userId === currentUser.id)
+      
+      const newRating = {
+        userId: currentUser.id,
+        username: currentUser.username,
+        rating: rating,
+        createdAt: new Date().toISOString()
+      }
+      
+      if (existingRatingIndex >= 0) {
+        // update existing rating
+        resourceRatings[existingRatingIndex] = newRating
+        console.log('Updated existing rating:', newRating)
+      } else {
+        // add new rating
+        resourceRatings.push(newRating)
+        console.log('Added new rating:', newRating)
+      }
+      
+      // save to localStorage for persistence
+      localStorage.setItem(`ratings_${resourceIdStr}`, JSON.stringify(resourceRatings))
+      
+      // update reactive data to trigger re-render
+      ratings.value = { ...ratings.value, [resourceIdStr]: resourceRatings }
+      
+    }
+    
+    // functions for unified rating system
+    
+    // this function gets the title of the selected resource
+    const getSelectedResourceTitle = () => {
+      if (!selectedResourceForRating.value) return ''
+      const resource = resources.value.find(r => r.id === selectedResourceForRating.value)
+      return resource ? resource.title : ''
+    }
+    
+    // this function gets the description of the selected resource
+    const getSelectedResourceDescription = () => {
+      if (!selectedResourceForRating.value) return ''
+      const resource = resources.value.find(r => r.id === selectedResourceForRating.value)
+      return resource ? resource.description : ''
+    }
+    
+    // this function sets the current rating when user clicks stars
+    const setCurrentRating = (rating) => {
+      currentRating.value = rating
+    }
+    
+    // this function submits the rating for the selected resource
+    const submitRating = () => {
+      if (!selectedResourceForRating.value || currentRating.value === 0) return
+      
+      const resourceId = selectedResourceForRating.value
+      const rating = currentRating.value
+      
+      // use the existing rateResource function
+      rateResource(resourceId, rating)
+      
+      // reset current rating input
+      currentRating.value = 0
+      
+      // force reactivity update by triggering a re-render
+      ratings.value = { ...ratings.value }
+      
+      // force Vue to re-evaluate computed properties
+      setTimeout(() => {
+        ratings.value = { ...ratings.value }
+        // trigger refresh for getUserRating function
+        ratingRefreshTrigger.value++
+      }, 100)
+      
+      // show success message (optional)
+      alert('Rating submitted successfully!')
+    }
+    
     onMounted(() => {
       loadData()
     })
@@ -165,7 +403,19 @@ export default {
       newResource,
       addResource,
       editResource,
-      deleteResource
+      deleteResource,
+      getRatings,
+      getAverageRating,
+      getRatingCount,
+      getUserRating,
+      rateResource,
+      selectedResourceForRating,
+      currentRating,
+      ratingRefreshTrigger,
+      getSelectedResourceTitle,
+      getSelectedResourceDescription,
+      setCurrentRating,
+      submitRating
     }
   }
 }
@@ -358,4 +608,201 @@ export default {
 .add-btn:hover {
   background-color: #218838;
 }
+
+/* unified rating system styling */
+
+.unified-rating-section {
+  margin-top: 3rem;
+  padding: 2rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #28a745;
+}
+
+.unified-rating-section h2 {
+  color: #333;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.rating-controls {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.resource-selector {
+  margin-bottom: 2rem;
+}
+
+.resource-selector label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.resource-dropdown {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  background-color: white;
+}
+
+.selected-resource-rating {
+  background-color: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.resource-info {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.resource-info h3 {
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.resource-info p {
+  color: #666;
+  margin: 0;
+}
+
+.current-rating {
+  margin-bottom: 1.5rem;
+}
+
+.rating-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.stars {
+  display: flex;
+  gap: 0.1rem;
+}
+
+.star {
+  font-size: 1.2rem;
+  color: #ddd;
+  transition: color 0.2s;
+}
+
+.star.filled {
+  color: #ffc107;
+}
+
+.star.half {
+  color: #ffc107;
+  background: linear-gradient(90deg, #ffc107 50%, #ddd 50%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.rating-text {
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.your-rating {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.your-rating-label {
+  font-size: 0.9rem;
+  color: #333;
+  font-weight: 500;
+}
+
+.rating-input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.rate-label {
+  font-size: 1rem;
+  color: #333;
+  font-weight: 500;
+}
+
+.star-inputs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.star-input {
+  font-size: 2rem;
+  color: #ddd;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.star-input:hover,
+.star-input.active {
+  color: #ffc107;
+}
+
+.submit-rating-btn {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.submit-rating-btn:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.submit-rating-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.login-prompt {
+  text-align: center;
+  padding: 1rem;
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+}
+
+.login-prompt p {
+  margin: 0;
+  color: #856404;
+}
+
+.login-prompt a {
+  color: #007bff;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.login-prompt a:hover {
+  text-decoration: underline;
+}
+
+.no-selection-prompt {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+  font-style: italic;
+}
+
 </style>

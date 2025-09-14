@@ -62,7 +62,6 @@
       </div>
       
       <!-- user type selection -->
-      <!-- 用户类型选择 -->
       <div class="form-group">
         <label>User Type:</label>
         <div class="user-type-options">
@@ -78,7 +77,6 @@
       </div>
       
       <!-- admin password field (only shown when admin is selected) -->
-      <!-- 管理员密码字段（仅在选择管理员时显示） -->
       <div v-if="userType === 'admin'" class="form-group">
         <label>Admin Password:</label>
         <input 
